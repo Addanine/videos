@@ -5,6 +5,7 @@
  * - Control global and individual video volume
  * - Pure black and white UI with videos in original colors
  * - Play/pause all videos at once
+ * - Adaptive video containers with consistent sizing and no black space
  */
 
 "use client";
@@ -13,6 +14,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 
 export default function VideoPlayerPage() {
   const [videos, setVideos] = useState<{ id: string; url: string }[]>([]);
+  const [videoAspectRatios, setVideoAspectRatios] = useState<Record<string, number>>({});
   const [globalVolume, setGlobalVolume] = useState(0.5);
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -78,6 +80,27 @@ export default function VideoPlayerPage() {
       element.volume = globalVolume;
       element.muted = isMuted;
       videoRefs.current.set(id, element);
+      
+      // One-time event listener to get video dimensions
+      const handleMetadata = () => {
+        const aspectRatio = element.videoWidth / element.videoHeight;
+        setVideoAspectRatios(prev => {
+          // Only update if different to avoid unnecessary re-renders
+          if (prev[id] !== aspectRatio) {
+            return { ...prev, [id]: aspectRatio };
+          }
+          return prev;
+        });
+        // Remove listener after getting metadata
+        element.removeEventListener('loadedmetadata', handleMetadata);
+      };
+      
+      element.addEventListener('loadedmetadata', handleMetadata);
+      
+      // If already loaded, get dimensions immediately
+      if (element.readyState >= 1 && element.videoWidth > 0) {
+        handleMetadata();
+      }
     } else {
       videoRefs.current.delete(id);
     }
@@ -92,6 +115,14 @@ export default function VideoPlayerPage() {
       }
       return prev.filter(v => v.id !== id);
     });
+    
+    // Also clean up the aspect ratio data
+    setVideoAspectRatios(prev => {
+      const newRatios = { ...prev };
+      delete newRatios[id];
+      return newRatios;
+    });
+    
     videoRefs.current.delete(id);
   }, []);
   
@@ -99,8 +130,9 @@ export default function VideoPlayerPage() {
   const clearAllVideos = useCallback(() => {
     videos.forEach(video => URL.revokeObjectURL(video.url));
     setVideos([]);
+    setVideoAspectRatios({});
     videoRefs.current.clear();
-  }, []);
+  }, [videos]);
   
   // Toggle mute for all videos
   const toggleMute = useCallback(() => {
@@ -217,9 +249,10 @@ export default function VideoPlayerPage() {
           {videos.map(video => (
             <div 
               key={video.id} 
-              className="relative border-4 border-white bg-transparent p-0"
+              className="relative border-4 border-white bg-transparent overflow-hidden"
               style={{
                 boxShadow: '8px 8px 0 rgba(255,255,255,0.5)',
+                aspectRatio: '16/9', // Fixed aspect ratio for all containers
               }}
             >
               <video
@@ -228,11 +261,8 @@ export default function VideoPlayerPage() {
                 autoPlay
                 loop
                 controls
-                className="h-auto w-full"
+                className="h-full w-full object-cover"
                 title="Video player"
-                style={{ 
-                  background: 'black',
-                }}
               />
               <button
                 onClick={() => removeVideo(video.id)}
@@ -240,6 +270,7 @@ export default function VideoPlayerPage() {
                 aria-label="Remove video"
                 style={{
                   fontFamily: 'monospace',
+                  zIndex: 10,
                 }}
               >
                 ✕
