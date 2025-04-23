@@ -4,6 +4,7 @@
  * - Play all videos simultaneously on loop with audio
  * - Control global and individual video volume
  * - Pure black and white UI with videos in original colors
+ * - Play/pause all videos at once
  */
 
 "use client";
@@ -14,6 +15,7 @@ export default function VideoPlayerPage() {
   const [videos, setVideos] = useState<{ id: string; url: string }[]>([]);
   const [globalVolume, setGlobalVolume] = useState(0.5);
   const [isMuted, setIsMuted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(true);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   
@@ -104,6 +106,20 @@ export default function VideoPlayerPage() {
   const toggleMute = useCallback(() => {
     setIsMuted(prev => !prev);
   }, []);
+  
+  // Toggle play/pause for all videos
+  const togglePlayPause = useCallback(() => {
+    videoRefs.current.forEach(video => {
+      if (isPlaying) {
+        video.pause();
+      } else {
+        video.play().catch(error => {
+          console.error("Error playing video:", error);
+        });
+      }
+    });
+    setIsPlaying(!isPlaying);
+  }, [isPlaying]);
 
   return (
     <main className="flex min-h-screen flex-col items-center bg-black p-4 text-white">
@@ -125,6 +141,18 @@ export default function VideoPlayerPage() {
           }}
         >
           Clear All
+        </button>
+        
+        <button
+          onClick={togglePlayPause}
+          className="border-2 border-white bg-transparent px-5 py-2 font-mono text-sm uppercase tracking-wider hover:bg-white hover:text-black"
+          disabled={videos.length === 0}
+          style={{
+            boxShadow: '4px 4px 0 rgba(255,255,255,0.8)',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          {isPlaying ? "Pause All" : "Play All"}
         </button>
         
         <button
